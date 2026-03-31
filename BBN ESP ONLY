@@ -1,0 +1,558 @@
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Iliankytb/Iliankytb/main/Zentrix"))()
+local V = "V.0.13"
+local selectedTheme = "Default"
+
+library:CreateWindow({
+	Title = "Bite by night by Iliankytb",
+	Theme = selectedTheme,
+	Icon = 0,
+	Intro = false,
+	IntroTitle = "BBN by Iliankytb",
+	KeyPC = Enum.KeyCode.K,
+	CustomSize = UDim2.new(0, 600, 0, 500),
+	Data = {
+		EnableSavingData = true,
+		DisableNotifyingLoadedData = false,
+		FolderName = "SaverBBN",
+		FileName = "Iliankytb",
+	},
+	Discord = {
+		Enabled = true,
+		DiscordLink = "https://discord.gg/E2TqYRsRP4",
+		RememberJoin = true,
+		Duration = 10,
+	},
+	Notifications = {
+		NoSound = false,
+		CustomSound = false,
+		CustomSoundId = "rbxassetid://106553517979212",
+	},
+	KeySystem = false,
+	KeySettings = {
+		Title = "Zentrix Library Testing Key System",
+		Note = "the key is Zentrix",
+		FileName = "Key",
+		SaveKey = true,
+		GrabKeyFromSite = false,
+		Key = {"Zentrix"},
+		Url = "",
+		AddGetKeyButton = false,
+		AddDiscordButton = true,
+		DiscordLink = "NoInviteLink",
+		GetKeyLink = "NoKeyLink",
+	},
+}, function(window)
+
+	-- Tabs
+	local InfoTab     = window:CreateTab("Info", 0)
+	local EspTab      = window:CreateTab("Esp", 0)
+	local DiscordTab  = window:CreateTab("Discord", 0)
+	local SettingsTab = window:CreateTab("Settings", 0)
+
+	-- Info paragraph
+	local ParagraphInfoServer = InfoTab:AddParagraph({Title = "", Content = "Loading", Name = "Paragraph1"})
+	local MarketplaceService = game:GetService("MarketplaceService")
+	local infoGameName = MarketplaceService:GetProductInfo(game.PlaceId)
+
+	local Version = InfoTab:AddText({
+		Text = "Version:" .. V,
+		Name = "VersionScript"
+	})
+
+	local Notif = window:Notify({
+		Title = "Script Version",
+		Message = V,
+		Duration = 7.5,
+		UseSound = true,
+	})
+
+	-- ESP state variables
+	local ActiveDistanceEsp     = false
+	local ActiveEspKillers      = false
+	local ActiveEspSurvivors    = false
+	local ActiveEspGen          = false
+	local ActiveEspFuseBoxes    = false
+	local ActiveEspBattery      = false
+	local ActiveEspTraps        = false
+	local DisableLimitRangerEsp = false
+	local LimitRangerEsp        = 100
+	local LineESPEnabled        = false
+
+	-- Services / core refs
+	local Players    = game:GetService("Players")
+	local LocalPlayer = Players.LocalPlayer
+	local RunService  = game:GetService("RunService")
+	local ESPs        = {}
+	local Camera      = nil
+
+	task.spawn(function()
+		Camera = workspace.CurrentCamera
+	end)
+
+	-- Server info updater
+	local function getServerInfo()
+		local playerCount = #Players:GetPlayers()
+		local maxPlayers  = Players.MaxPlayers
+		local isStudio    = game:GetService("RunService"):IsStudio()
+		return {
+			PlaceId        = game.PlaceId,
+			JobId          = game.JobId,
+			IsStudio       = isStudio,
+			CurrentPlayers = playerCount,
+			MaxPlayers     = maxPlayers
+		}
+	end
+
+	-- ESP helpers
+	local function CreateEsp(Char, Color, Text, Parent)
+		if not Char or not Parent then return end
+		if Char:FindFirstChild("ESP") and Char:FindFirstChildOfClass("Highlight") then return end
+
+		local highlight = Char:FindFirstChildOfClass("Highlight") or Instance.new("Highlight")
+		highlight.Name               = "ESP_Highlight"
+		highlight.Adornee            = Char
+		highlight.FillColor          = Color
+		highlight.FillTransparency   = 1
+		highlight.OutlineColor       = Color
+		highlight.OutlineTransparency = 0
+		highlight.DepthMode          = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Enabled            = false
+		highlight.Parent             = Char
+
+		local billboard = Char:FindFirstChild("ESP") or Instance.new("BillboardGui")
+		billboard.Name         = "ESP"
+		billboard.Size         = UDim2.new(10, 0, 2.5, 0)
+		billboard.AlwaysOnTop  = true
+		billboard.StudsOffset  = Vector3.new(0, -2, 0)
+		billboard.Adornee      = Parent
+		billboard.Enabled      = false
+		billboard.Parent       = Parent
+
+		local label = billboard:FindFirstChildOfClass("TextLabel") or Instance.new("TextLabel")
+		label.Size                = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.Text                = Text
+		label.TextColor3          = Color
+		label.TextScaled          = true
+		label.Parent              = billboard
+
+		local line = Drawing.new("Line")
+		line.Visible      = false
+		line.Color        = Color
+		line.Thickness    = 1.5
+		line.Transparency = 1
+
+		table.insert(ESPs, {
+			Char      = Char,
+			Highlight = highlight,
+			Billboard = billboard,
+			Label     = label,
+			Part      = Parent,
+			Line      = line,
+			Text      = Text,
+			Color     = Color
+		})
+	end
+
+	local function KeepEsp(Char, Parent)
+		if not Char or not Char:FindFirstChildOfClass("Highlight") then return end
+		if not Parent or not Parent:FindFirstChildOfClass("BillboardGui") then return end
+
+		for i = #ESPs, 1, -1 do
+			local esp = ESPs[i]
+			if esp.Char == Char then
+				if esp.Highlight then esp.Highlight:Destroy() end
+				if esp.Billboard then esp.Billboard:Destroy() end
+				if esp.Line      then esp.Line:Destroy()      end
+				table.remove(ESPs, i)
+			end
+		end
+	end
+
+	local function SetupCharacter(child, Map, Part)
+		if not child:IsA("Model") then return end
+		child.AncestryChanged:Connect(function()
+			if not child:IsDescendantOf(Map) then
+				KeepEsp(child, Part)
+			end
+		end)
+	end
+
+	-- RenderStepped: server info + ESP rendering
+	RunService.RenderStepped:Connect(function()
+		task.spawn(function()
+			local updatedInfo    = getServerInfo()
+			local updatedContent = string.format(
+				"🎮 Game: %s\n📌 PlaceId: %s\n🔑 JobId: %s\n🧪 IsStudio: %s\n👥 Players: %d/%d",
+				infoGameName.Name,
+				updatedInfo.PlaceId,
+				updatedInfo.JobId,
+				tostring(updatedInfo.IsStudio),
+				updatedInfo.CurrentPlayers,
+				updatedInfo.MaxPlayers
+			)
+			ParagraphInfoServer:Set({Title = "Info", Content = updatedContent})
+		end)
+
+		task.spawn(function()
+			if Camera then
+				local cameraPosition = Camera.CFrame.Position
+				local screenCenter   = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+
+				for _, esp in ipairs(ESPs) do
+					local part      = esp.Part
+					local highlight = esp.Highlight
+					local billboard = esp.Billboard
+					local label     = esp.Label
+					local line      = esp.Line
+					if not part or not highlight or not billboard or not label or not line then return end
+
+					if part.Parent then
+						local distance          = (cameraPosition - part.Position).Magnitude
+						local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+						local withinRange       = DisableLimitRangerEsp or distance <= LimitRangerEsp
+
+						highlight.Enabled = withinRange and onScreen
+						billboard.Enabled = withinRange and onScreen
+
+						label.Text = ActiveDistanceEsp
+							and (esp.Text .. " (" .. math.floor(distance + 0.5) .. " m)")
+							or esp.Text
+
+						if LineESPEnabled and onScreen and withinRange then
+							line.Visible = true
+							line.From    = screenCenter
+							line.To      = Vector2.new(screenPos.X, screenPos.Y)
+						else
+							line.Visible = false
+						end
+					else
+						if line then line.Visible = false end
+					end
+				end
+			else
+				task.spawn(function()
+					if workspace:FindFirstChild("CurrentCamera") then
+						Camera = workspace.CurrentCamera
+					end
+				end)
+			end
+		end)
+	end)
+
+	-- ESP Toggles
+	local EspSurvivorsToggle = EspTab:AddToggle({
+		Text = "Esp Survivors",
+		Name = "EspSurvivorsToggle",
+		CurrentValue = false,
+		Flag = "EspSurvivors",
+		Callback = function(Value)
+			ActiveEspSurvivors = Value
+			if ActiveEspSurvivors then
+				for _, p in pairs(workspace.PLAYERS.ALIVE:GetChildren()) do
+					if p:IsA("Model") and p.PrimaryPart and not p.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+						if p:FindFirstChildOfClass("Highlight") then p:FindFirstChildOfClass("Highlight"):Destroy() end
+						SetupCharacter(p, workspace.PLAYERS.ALIVE, p.PrimaryPart)
+						CreateEsp(p, Color3.fromRGB(0, 255, 0), p.Name, p.PrimaryPart)
+					end
+				end
+			else
+				for _, p in pairs(workspace.PLAYERS.ALIVE:GetChildren()) do
+					if p:IsA("Model") and p.PrimaryPart and p:FindFirstChildOfClass("Highlight") and p.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+						KeepEsp(p, p.PrimaryPart)
+					end
+				end
+			end
+		end,
+	})
+
+	local EspKillersToggle = EspTab:AddToggle({
+		Text = "Esp Killers",
+		Name = "EspKillers",
+		CurrentValue = false,
+		Flag = "EspKiller",
+		Callback = function(Value)
+			ActiveEspKillers = Value
+			if ActiveEspKillers then
+				for _, p in pairs(workspace.PLAYERS.KILLER:GetChildren()) do
+					if p:IsA("Model") and p:FindFirstChild("RootPart") and not p.RootPart:FindFirstChildOfClass("BillboardGui") then
+						if p:FindFirstChildOfClass("Highlight") then p:FindFirstChildOfClass("Highlight"):Destroy() end
+						SetupCharacter(p, workspace.PLAYERS.KILLER, p.RootPart)
+						CreateEsp(p, Color3.fromRGB(255, 0, 0), p.Name, p.RootPart)
+					end
+				end
+			else
+				for _, p in pairs(workspace.PLAYERS.KILLER:GetChildren()) do
+					if p:IsA("Model") and p:FindFirstChild("RootPart") and p:FindFirstChildOfClass("Highlight") and p.RootPart:FindFirstChildOfClass("BillboardGui") then
+						KeepEsp(p, p.RootPart)
+					end
+				end
+			end
+		end,
+	})
+
+	local EspGenToggle = EspTab:AddToggle({
+		Text = "Esp Generators",
+		Name = "EspGens",
+		CurrentValue = false,
+		Flag = "EspGens",
+		Callback = function(Value)
+			ActiveEspGen = Value
+			if ActiveEspGen then
+				if workspace.MAPS:FindFirstChild("GAME MAP") then
+					for _, g in pairs(workspace.MAPS["GAME MAP"].Generators:GetChildren()) do
+						if g:IsA("Model") and g.PrimaryPart and not g:FindFirstChildOfClass("Highlight") and not g.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+							CreateEsp(g, Color3.fromRGB(255, 255, 0), "Generator", g.PrimaryPart)
+						end
+					end
+				end
+			else
+				if workspace.MAPS:FindFirstChild("GAME MAP") then
+					for _, g in pairs(workspace.MAPS["GAME MAP"].Generators:GetChildren()) do
+						if g:IsA("Model") and g.PrimaryPart and g:FindFirstChildOfClass("Highlight") and g.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+							KeepEsp(g, g.PrimaryPart)
+						end
+					end
+				end
+			end
+		end,
+	})
+
+	local EspFuseBoxesToggle = EspTab:AddToggle({
+		Text = "Esp Fuse Boxes",
+		Name = "EspFuseBoxes",
+		CurrentValue = false,
+		Flag = "EspFuseBoxes",
+		Callback = function(Value)
+			ActiveEspFuseBoxes = Value
+			if ActiveEspFuseBoxes then
+				if workspace.MAPS:FindFirstChild("GAME MAP") and workspace.MAPS["GAME MAP"]:FindFirstChild("FuseBoxes") then
+					for _, f in pairs(workspace.MAPS["GAME MAP"].FuseBoxes:GetChildren()) do
+						if f:IsA("Model") and f.PrimaryPart and not f.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+							if f:FindFirstChildOfClass("Highlight") then f:FindFirstChildOfClass("Highlight"):Destroy() end
+							CreateEsp(f, Color3.fromRGB(0, 0, 255), "Fuse Box", f.PrimaryPart)
+						end
+					end
+				end
+			else
+				if workspace.MAPS:FindFirstChild("GAME MAP") and workspace.MAPS["GAME MAP"]:FindFirstChild("FuseBoxes") then
+					for _, f in pairs(workspace.MAPS["GAME MAP"].FuseBoxes:GetChildren()) do
+						if f:IsA("Model") and f.PrimaryPart and f:FindFirstChildOfClass("Highlight") and f.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+							KeepEsp(f, f.PrimaryPart)
+						end
+					end
+				end
+			end
+		end,
+	})
+
+	local EspBatteryToggle = EspTab:AddToggle({
+		Text = "Esp Battery",
+		Name = "EspBatteryToggle",
+		CurrentValue = false,
+		Flag = "EspBatteryToggle",
+		Callback = function(Value)
+			ActiveEspBattery = Value
+			if ActiveEspBattery then
+				for _, b in pairs(workspace.IGNORE:GetChildren()) do
+					if b:IsA("BasePart") and b.Name == "Battery" and not b:FindFirstChildOfClass("BillboardGui") then
+						if b:FindFirstChildOfClass("Highlight") then b:FindFirstChildOfClass("Highlight"):Destroy() end
+						CreateEsp(b, Color3.fromRGB(0, 0, 255), "Battery", b)
+					end
+				end
+			else
+				for _, b in pairs(workspace.IGNORE:GetChildren()) do
+					if b:IsA("BasePart") and b.Name == "Battery" and b:FindFirstChildOfClass("Highlight") and b:FindFirstChildOfClass("BillboardGui") then
+						KeepEsp(b, b)
+					end
+				end
+			end
+		end,
+	})
+
+	local EspTrapToggle = EspTab:AddToggle({
+		Text = "Esp Traps",
+		Name = "EspTrapToggle",
+		CurrentValue = false,
+		Flag = "EspTrapToggle",
+		Callback = function(Value)
+			ActiveEspTraps = Value
+			if ActiveEspTraps then
+				for _, t in pairs(workspace.IGNORE:GetChildren()) do
+					if t:IsA("Model") and t.Name == "Trap" and not t.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+						if t:FindFirstChildOfClass("Highlight") then t:FindFirstChildOfClass("Highlight"):Destroy() end
+						CreateEsp(t, Color3.fromRGB(255, 0, 0), "Trap", t.PrimaryPart)
+					end
+				end
+			else
+				for _, t in pairs(workspace.IGNORE:GetChildren()) do
+					if t:IsA("Model") and t.Name == "Trap" and t:FindFirstChildOfClass("Highlight") and t.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+						KeepEsp(t, t.PrimaryPart)
+					end
+				end
+			end
+		end,
+	})
+
+	-- Discord tab
+	local ButonDiscordLink = DiscordTab:AddButton({
+		Text = "Discord Link",
+		Name = "Button",
+		Callback = function()
+			library:CopyText("https://discord.gg/E2TqYRsRP4")
+		end
+	})
+
+	-- Settings tab (ESP-related only)
+	local LimitRangerEspSlider = SettingsTab:AddSlider({
+		Text    = "Limit Ranger for Esp",
+		Name    = "LimitRangerEspSlider",
+		Min     = 25,
+		Max     = 1000,
+		Default = 100,
+		Flag    = "LimitRangerEsp1",
+		Callback = function(Value)
+			LimitRangerEsp = Value
+		end,
+	})
+
+	local DisableLimitRangerEspToggle = SettingsTab:AddToggle({
+		Text    = "Disable Limit Ranger Esp",
+		Name    = "DisableLimitRangerEspToggle",
+		Default = false,
+		Flag    = "ButtonDLRE",
+		Callback = function(Value)
+			DisableLimitRangerEsp = Value
+		end,
+	})
+
+	local DistanceEspToggle = SettingsTab:AddToggle({
+		Text    = "Activate Distance For Esp",
+		Name    = "DistanceEspToggle",
+		Default = false,
+		Flag    = "ButtonADFE",
+		Callback = function(Value)
+			ActiveDistanceEsp = Value
+		end,
+	})
+
+	local TraitsToggle = SettingsTab:AddToggle({
+		Text    = "Line Esp",
+		Name    = "TraitToggle",
+		Default = false,
+		Flag    = "ButtonTTR",
+		Callback = function(Value)
+			LineESPEnabled = Value
+		end,
+	})
+
+	local AllAvailableThemes = library:GetAllThemes()
+	library:EnableFPSCounter(true)
+
+	local ChangeThemeDropdown = SettingsTab:AddDropdown({
+		Text        = "Change Theme:",
+		Name        = "Dropdown2",
+		Options     = AllAvailableThemes,
+		Default     = "Default",
+		MultiSelect = false,
+		Flag        = "Dropdown2",
+		Callback    = function(choice)
+			window:ChangeTheme(choice)
+		end
+	})
+
+	library:LoadData()
+
+	-- DescendantAdded: auto-apply ESP to newly added objects
+	workspace.DescendantAdded:Connect(function(child)
+		task.wait(0.75)
+
+		if ActiveEspSurvivors then
+			if child.Parent == workspace.PLAYERS.ALIVE and child:IsA("Model") and child.PrimaryPart and not child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+				if Players:GetPlayerFromCharacter(child) then
+					if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
+					SetupCharacter(child, workspace.PLAYERS.ALIVE, child.PrimaryPart)
+					CreateEsp(child, Color3.fromRGB(0, 255, 0), child.Name, child.PrimaryPart)
+				end
+			end
+		end
+
+		if ActiveEspKillers then
+			if child.Parent == workspace.PLAYERS.KILLER and child:IsA("Model") and child:FindFirstChild("RootPart") and not child.RootPart:FindFirstChildOfClass("BillboardGui") then
+				if Players:GetPlayerFromCharacter(child) then
+					if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
+					SetupCharacter(child, workspace.PLAYERS.KILLER, child.RootPart)
+					CreateEsp(child, Color3.fromRGB(255, 0, 0), child.Name, child.RootPart)
+				end
+			end
+		end
+
+		if ActiveEspGen and workspace.MAPS:FindFirstChild("GAME MAP") then
+			if child.Parent == workspace.MAPS["GAME MAP"].Generators and child:IsA("Model") and child.PrimaryPart and not child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+				CreateEsp(child, Color3.fromRGB(255, 255, 0), "Generator", child.PrimaryPart)
+			end
+		end
+
+		if ActiveEspFuseBoxes and workspace.MAPS:FindFirstChild("GAME MAP") and workspace.MAPS["GAME MAP"]:FindFirstChild("FuseBoxes") then
+			if child.Parent == workspace.MAPS["GAME MAP"].FuseBoxes and child:IsA("Model") and child.PrimaryPart and not child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+				if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
+				CreateEsp(child, Color3.fromRGB(0, 0, 255), "Fuse Box", child.PrimaryPart)
+			end
+		end
+
+		if ActiveEspTraps then
+			if child.Parent == workspace.IGNORE and child.Name == "Trap" and child:IsA("Model") and child.PrimaryPart and not child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+				if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
+				CreateEsp(child, Color3.fromRGB(255, 0, 0), "Trap", child.PrimaryPart)
+			end
+		end
+
+		if ActiveEspBattery then
+			if child.Parent == workspace.IGNORE and child.Name == "Battery" and child:IsA("BasePart") and not child:FindFirstChildOfClass("BillboardGui") then
+				if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
+				CreateEsp(child, Color3.fromRGB(0, 0, 255), "Battery", child)
+			end
+		end
+	end)
+
+	-- DescendantRemoving: clean up ESP on removal
+	workspace.DescendantRemoving:Connect(function(child)
+		if child:IsA("Model") then
+			if ActiveEspSurvivors and child:IsDescendantOf(workspace.PLAYERS.ALIVE) and child.PrimaryPart then
+				if child:FindFirstChildOfClass("Highlight") and child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+					KeepEsp(child, child.PrimaryPart)
+				end
+			end
+			if ActiveEspKillers and child:IsDescendantOf(workspace.PLAYERS.KILLER) and child:FindFirstChild("RootPart") then
+				if child:FindFirstChildOfClass("Highlight") and child.RootPart:FindFirstChildOfClass("BillboardGui") then
+					KeepEsp(child, child.RootPart)
+				end
+			end
+			if ActiveEspGen and workspace.MAPS:FindFirstChild("GAME MAP") then
+				if child:IsDescendantOf(workspace.MAPS["GAME MAP"].Generators) and child.PrimaryPart then
+					if child:FindFirstChildOfClass("Highlight") and child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+						KeepEsp(child, child.PrimaryPart)
+					end
+				end
+			end
+			if ActiveEspFuseBoxes and workspace.MAPS:FindFirstChild("GAME MAP") then
+				if child:IsDescendantOf(workspace.MAPS["GAME MAP"].FuseBoxes) and child.PrimaryPart then
+					if child:FindFirstChildOfClass("Highlight") and child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+						KeepEsp(child, child.PrimaryPart)
+					end
+				end
+			end
+			if ActiveEspTraps and child:IsDescendantOf(workspace.IGNORE) and child.PrimaryPart then
+				if child:FindFirstChildOfClass("Highlight") and child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
+					KeepEsp(child, child.PrimaryPart)
+				end
+			end
+		elseif child:IsA("BasePart") then
+			if ActiveEspBattery and child:IsDescendantOf(workspace.IGNORE) and child.Name == "Battery" then
+				if child:FindFirstChildOfClass("Highlight") and child:FindFirstChildOfClass("BillboardGui") then
+					KeepEsp(child, child)
+				end
+			end
+		end
+	end)
+end)
