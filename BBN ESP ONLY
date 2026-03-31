@@ -653,38 +653,6 @@ library:CreateWindow({
 		end,
 	})
 
-	-- Unload Cheat Button
-	SettingsTab:AddButton({
-		Text = "Unload Cheat",
-		Name = "ButtonUnloadCheat",
-		Callback = function()
-			-- Clean up all ESP instances
-			for _, esp in ipairs(ESPs) do
-				if esp.Highlight then esp.Highlight:Destroy() end
-				if esp.Billboard then esp.Billboard:Destroy() end
-				if esp.Line then esp.Line:Destroy() end
-			end
-			ESPs = {}
-			
-			-- Clear all flags/toggles
-			ActiveDistanceEsp = false
-			ActiveEspKillers = false
-			ActiveEspSurvivors = false
-			ActiveEspGen = false
-			ActiveEspFuseBoxes = false
-			ActiveEspBattery = false
-			ActiveEspTraps = false
-			DisableLimitRangerEsp = false
-			LineESPEnabled = false
-			
-			-- Destroy the window
-			window:Destroy()
-			
-			-- Print confirmation
-			print("Cheat unloaded successfully")
-		end,
-	})
-
 	local AllAvailableThemes = library:GetAllThemes()
 	library:EnableFPSCounter(true)
 
