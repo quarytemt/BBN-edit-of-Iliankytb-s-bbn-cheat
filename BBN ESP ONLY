@@ -1,13 +1,13 @@
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/quarytemt/BBN-edit-of-Iliankytb-s-bbn-cheat/refs/heads/main/BBN%20ESP%20ONLY"))()
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Iliankytb/Iliankytb/main/Zentrix"))()
 local V = "V.0.13"
 local selectedTheme = "Default"
 
 library:CreateWindow({
-	Title = "Bite by night by Iliankytb",
+	Title = "Bite by night by Iliankytb | Edited by xxxcarxly",
 	Theme = selectedTheme,
 	Icon = 0,
 	Intro = false,
-	IntroTitle = "BBN by Iliankytb",
+	IntroTitle = "BBN by Iliankytb | Edited by xxxcarxly",
 	KeyPC = Enum.KeyCode.K,
 	CustomSize = UDim2.new(0, 600, 0, 500),
 	Data = {
@@ -78,8 +78,18 @@ library:CreateWindow({
 	local LimitRangerEsp        = 100
 	local LineESPEnabled        = false
 
+	-- Per-ESP color and intensity settings
+	local EspSettings = {
+		Survivors = { Color = Color3.fromRGB(0, 255, 0),   FillIntensity = 1.0  },
+		Killers   = { Color = Color3.fromRGB(255, 0, 0),   FillIntensity = 1.0  },
+		Generators= { Color = Color3.fromRGB(255, 255, 0), FillIntensity = 1.0  },
+		FuseBoxes = { Color = Color3.fromRGB(0, 0, 255),   FillIntensity = 1.0  },
+		Battery   = { Color = Color3.fromRGB(0, 0, 255),   FillIntensity = 1.0  },
+		Traps     = { Color = Color3.fromRGB(255, 0, 0),   FillIntensity = 1.0  },
+	}
+
 	-- Services / core refs
-	local Players    = game:GetService("Players")
+	local Players     = game:GetService("Players")
 	local LocalPlayer = Players.LocalPlayer
 	local RunService  = game:GetService("RunService")
 	local ESPs        = {}
@@ -88,6 +98,26 @@ library:CreateWindow({
 	task.spawn(function()
 		Camera = workspace.CurrentCamera
 	end)
+
+	-- Helper: update all active ESPs of a given tag with new color/intensity
+	local function RefreshEspVisuals(tag, color, fillIntensity)
+		for _, esp in ipairs(ESPs) do
+			if esp.Tag == tag then
+				esp.Color = color
+				if esp.Highlight then
+					esp.Highlight.FillColor      = color
+					esp.Highlight.OutlineColor   = color
+					esp.Highlight.FillTransparency = fillIntensity
+				end
+				if esp.Label then
+					esp.Label.TextColor3 = color
+				end
+				if esp.Line then
+					esp.Line.Color = color
+				end
+			end
+		end
+	end
 
 	-- Server info updater
 	local function getServerInfo()
@@ -104,37 +134,41 @@ library:CreateWindow({
 	end
 
 	-- ESP helpers
-	local function CreateEsp(Char, Color, Text, Parent)
+	local function CreateEsp(Char, Tag, Text, Parent)
 		if not Char or not Parent then return end
 		if Char:FindFirstChild("ESP") and Char:FindFirstChildOfClass("Highlight") then return end
 
+		local settings = EspSettings[Tag]
+		local Color    = settings.Color
+		local FillT    = settings.FillIntensity
+
 		local highlight = Char:FindFirstChildOfClass("Highlight") or Instance.new("Highlight")
-		highlight.Name               = "ESP_Highlight"
-		highlight.Adornee            = Char
-		highlight.FillColor          = Color
-		highlight.FillTransparency   = 1
-		highlight.OutlineColor       = Color
+		highlight.Name                = "ESP_Highlight"
+		highlight.Adornee             = Char
+		highlight.FillColor           = Color
+		highlight.FillTransparency    = FillT
+		highlight.OutlineColor        = Color
 		highlight.OutlineTransparency = 0
-		highlight.DepthMode          = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.Enabled            = false
-		highlight.Parent             = Char
+		highlight.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Enabled             = false
+		highlight.Parent              = Char
 
 		local billboard = Char:FindFirstChild("ESP") or Instance.new("BillboardGui")
-		billboard.Name         = "ESP"
-		billboard.Size         = UDim2.new(10, 0, 2.5, 0)
-		billboard.AlwaysOnTop  = true
-		billboard.StudsOffset  = Vector3.new(0, -2, 0)
-		billboard.Adornee      = Parent
-		billboard.Enabled      = false
-		billboard.Parent       = Parent
+		billboard.Name        = "ESP"
+		billboard.Size        = UDim2.new(10, 0, 2.5, 0)
+		billboard.AlwaysOnTop = true
+		billboard.StudsOffset = Vector3.new(0, -2, 0)
+		billboard.Adornee     = Parent
+		billboard.Enabled     = false
+		billboard.Parent      = Parent
 
 		local label = billboard:FindFirstChildOfClass("TextLabel") or Instance.new("TextLabel")
-		label.Size                = UDim2.new(1, 0, 1, 0)
+		label.Size                   = UDim2.new(1, 0, 1, 0)
 		label.BackgroundTransparency = 1
-		label.Text                = Text
-		label.TextColor3          = Color
-		label.TextScaled          = true
-		label.Parent              = billboard
+		label.Text                   = Text
+		label.TextColor3             = Color
+		label.TextScaled             = true
+		label.Parent                 = billboard
 
 		local line = Drawing.new("Line")
 		line.Visible      = false
@@ -150,7 +184,8 @@ library:CreateWindow({
 			Part      = Parent,
 			Line      = line,
 			Text      = Text,
-			Color     = Color
+			Color     = Color,
+			Tag       = Tag,
 		})
 	end
 
@@ -208,9 +243,9 @@ library:CreateWindow({
 					if not part or not highlight or not billboard or not label or not line then return end
 
 					if part.Parent then
-						local distance          = (cameraPosition - part.Position).Magnitude
+						local distance            = (cameraPosition - part.Position).Magnitude
 						local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-						local withinRange       = DisableLimitRangerEsp or distance <= LimitRangerEsp
+						local withinRange         = DisableLimitRangerEsp or distance <= LimitRangerEsp
 
 						highlight.Enabled = withinRange and onScreen
 						billboard.Enabled = withinRange and onScreen
@@ -240,8 +275,14 @@ library:CreateWindow({
 		end)
 	end)
 
-	-- ESP Toggles
-	local EspSurvivorsToggle = EspTab:AddToggle({
+	-- =====================
+	-- ESP TOGGLES + CUSTOMIZATION
+	-- =====================
+
+	-- SURVIVORS
+	EspTab:AddText({ Text = "── Survivors ──", Name = "SurvivorsHeader" })
+
+	EspTab:AddToggle({
 		Text = "Esp Survivors",
 		Name = "EspSurvivorsToggle",
 		CurrentValue = false,
@@ -253,7 +294,7 @@ library:CreateWindow({
 					if p:IsA("Model") and p.PrimaryPart and not p.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
 						if p:FindFirstChildOfClass("Highlight") then p:FindFirstChildOfClass("Highlight"):Destroy() end
 						SetupCharacter(p, workspace.PLAYERS.ALIVE, p.PrimaryPart)
-						CreateEsp(p, Color3.fromRGB(0, 255, 0), p.Name, p.PrimaryPart)
+						CreateEsp(p, "Survivors", p.Name, p.PrimaryPart)
 					end
 				end
 			else
@@ -266,7 +307,36 @@ library:CreateWindow({
 		end,
 	})
 
-	local EspKillersToggle = EspTab:AddToggle({
+	EspTab:AddColorPicker({
+		Text    = "Survivors ESP Color",
+		Name    = "SurvivorsEspColor",
+		Default = Color3.fromRGB(0, 255, 0),
+		Flag    = "SurvivorsEspColor",
+		Callback = function(Value)
+			EspSettings.Survivors.Color = Value
+			RefreshEspVisuals("Survivors", Value, EspSettings.Survivors.FillIntensity)
+		end,
+	})
+
+	EspTab:AddSlider({
+		Text    = "Survivors Fill Intensity",
+		Name    = "SurvivorsEspIntensity",
+		Min     = 0,
+		Max     = 100,
+		Default = 100,
+		Flag    = "SurvivorsEspIntensity",
+		Callback = function(Value)
+			-- 100 = fully transparent fill (outline only), 0 = fully filled
+			local fillT = Value / 100
+			EspSettings.Survivors.FillIntensity = fillT
+			RefreshEspVisuals("Survivors", EspSettings.Survivors.Color, fillT)
+		end,
+	})
+
+	-- KILLERS
+	EspTab:AddText({ Text = "── Killers ──", Name = "KillersHeader" })
+
+	EspTab:AddToggle({
 		Text = "Esp Killers",
 		Name = "EspKillers",
 		CurrentValue = false,
@@ -278,7 +348,7 @@ library:CreateWindow({
 					if p:IsA("Model") and p:FindFirstChild("RootPart") and not p.RootPart:FindFirstChildOfClass("BillboardGui") then
 						if p:FindFirstChildOfClass("Highlight") then p:FindFirstChildOfClass("Highlight"):Destroy() end
 						SetupCharacter(p, workspace.PLAYERS.KILLER, p.RootPart)
-						CreateEsp(p, Color3.fromRGB(255, 0, 0), p.Name, p.RootPart)
+						CreateEsp(p, "Killers", p.Name, p.RootPart)
 					end
 				end
 			else
@@ -291,7 +361,35 @@ library:CreateWindow({
 		end,
 	})
 
-	local EspGenToggle = EspTab:AddToggle({
+	EspTab:AddColorPicker({
+		Text    = "Killers ESP Color",
+		Name    = "KillersEspColor",
+		Default = Color3.fromRGB(255, 0, 0),
+		Flag    = "KillersEspColor",
+		Callback = function(Value)
+			EspSettings.Killers.Color = Value
+			RefreshEspVisuals("Killers", Value, EspSettings.Killers.FillIntensity)
+		end,
+	})
+
+	EspTab:AddSlider({
+		Text    = "Killers Fill Intensity",
+		Name    = "KillersEspIntensity",
+		Min     = 0,
+		Max     = 100,
+		Default = 100,
+		Flag    = "KillersEspIntensity",
+		Callback = function(Value)
+			local fillT = Value / 100
+			EspSettings.Killers.FillIntensity = fillT
+			RefreshEspVisuals("Killers", EspSettings.Killers.Color, fillT)
+		end,
+	})
+
+	-- GENERATORS
+	EspTab:AddText({ Text = "── Generators ──", Name = "GeneratorsHeader" })
+
+	EspTab:AddToggle({
 		Text = "Esp Generators",
 		Name = "EspGens",
 		CurrentValue = false,
@@ -302,7 +400,7 @@ library:CreateWindow({
 				if workspace.MAPS:FindFirstChild("GAME MAP") then
 					for _, g in pairs(workspace.MAPS["GAME MAP"].Generators:GetChildren()) do
 						if g:IsA("Model") and g.PrimaryPart and not g:FindFirstChildOfClass("Highlight") and not g.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
-							CreateEsp(g, Color3.fromRGB(255, 255, 0), "Generator", g.PrimaryPart)
+							CreateEsp(g, "Generators", "Generator", g.PrimaryPart)
 						end
 					end
 				end
@@ -318,7 +416,35 @@ library:CreateWindow({
 		end,
 	})
 
-	local EspFuseBoxesToggle = EspTab:AddToggle({
+	EspTab:AddColorPicker({
+		Text    = "Generators ESP Color",
+		Name    = "GeneratorsEspColor",
+		Default = Color3.fromRGB(255, 255, 0),
+		Flag    = "GeneratorsEspColor",
+		Callback = function(Value)
+			EspSettings.Generators.Color = Value
+			RefreshEspVisuals("Generators", Value, EspSettings.Generators.FillIntensity)
+		end,
+	})
+
+	EspTab:AddSlider({
+		Text    = "Generators Fill Intensity",
+		Name    = "GeneratorsEspIntensity",
+		Min     = 0,
+		Max     = 100,
+		Default = 100,
+		Flag    = "GeneratorsEspIntensity",
+		Callback = function(Value)
+			local fillT = Value / 100
+			EspSettings.Generators.FillIntensity = fillT
+			RefreshEspVisuals("Generators", EspSettings.Generators.Color, fillT)
+		end,
+	})
+
+	-- FUSE BOXES
+	EspTab:AddText({ Text = "── Fuse Boxes ──", Name = "FuseBoxesHeader" })
+
+	EspTab:AddToggle({
 		Text = "Esp Fuse Boxes",
 		Name = "EspFuseBoxes",
 		CurrentValue = false,
@@ -330,7 +456,7 @@ library:CreateWindow({
 					for _, f in pairs(workspace.MAPS["GAME MAP"].FuseBoxes:GetChildren()) do
 						if f:IsA("Model") and f.PrimaryPart and not f.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
 							if f:FindFirstChildOfClass("Highlight") then f:FindFirstChildOfClass("Highlight"):Destroy() end
-							CreateEsp(f, Color3.fromRGB(0, 0, 255), "Fuse Box", f.PrimaryPart)
+							CreateEsp(f, "FuseBoxes", "Fuse Box", f.PrimaryPart)
 						end
 					end
 				end
@@ -346,7 +472,35 @@ library:CreateWindow({
 		end,
 	})
 
-	local EspBatteryToggle = EspTab:AddToggle({
+	EspTab:AddColorPicker({
+		Text    = "Fuse Boxes ESP Color",
+		Name    = "FuseBoxesEspColor",
+		Default = Color3.fromRGB(0, 0, 255),
+		Flag    = "FuseBoxesEspColor",
+		Callback = function(Value)
+			EspSettings.FuseBoxes.Color = Value
+			RefreshEspVisuals("FuseBoxes", Value, EspSettings.FuseBoxes.FillIntensity)
+		end,
+	})
+
+	EspTab:AddSlider({
+		Text    = "Fuse Boxes Fill Intensity",
+		Name    = "FuseBoxesEspIntensity",
+		Min     = 0,
+		Max     = 100,
+		Default = 100,
+		Flag    = "FuseBoxesEspIntensity",
+		Callback = function(Value)
+			local fillT = Value / 100
+			EspSettings.FuseBoxes.FillIntensity = fillT
+			RefreshEspVisuals("FuseBoxes", EspSettings.FuseBoxes.Color, fillT)
+		end,
+	})
+
+	-- BATTERY
+	EspTab:AddText({ Text = "── Battery ──", Name = "BatteryHeader" })
+
+	EspTab:AddToggle({
 		Text = "Esp Battery",
 		Name = "EspBatteryToggle",
 		CurrentValue = false,
@@ -357,7 +511,7 @@ library:CreateWindow({
 				for _, b in pairs(workspace.IGNORE:GetChildren()) do
 					if b:IsA("BasePart") and b.Name == "Battery" and not b:FindFirstChildOfClass("BillboardGui") then
 						if b:FindFirstChildOfClass("Highlight") then b:FindFirstChildOfClass("Highlight"):Destroy() end
-						CreateEsp(b, Color3.fromRGB(0, 0, 255), "Battery", b)
+						CreateEsp(b, "Battery", "Battery", b)
 					end
 				end
 			else
@@ -370,7 +524,35 @@ library:CreateWindow({
 		end,
 	})
 
-	local EspTrapToggle = EspTab:AddToggle({
+	EspTab:AddColorPicker({
+		Text    = "Battery ESP Color",
+		Name    = "BatteryEspColor",
+		Default = Color3.fromRGB(0, 0, 255),
+		Flag    = "BatteryEspColor",
+		Callback = function(Value)
+			EspSettings.Battery.Color = Value
+			RefreshEspVisuals("Battery", Value, EspSettings.Battery.FillIntensity)
+		end,
+	})
+
+	EspTab:AddSlider({
+		Text    = "Battery Fill Intensity",
+		Name    = "BatteryEspIntensity",
+		Min     = 0,
+		Max     = 100,
+		Default = 100,
+		Flag    = "BatteryEspIntensity",
+		Callback = function(Value)
+			local fillT = Value / 100
+			EspSettings.Battery.FillIntensity = fillT
+			RefreshEspVisuals("Battery", EspSettings.Battery.Color, fillT)
+		end,
+	})
+
+	-- TRAPS
+	EspTab:AddText({ Text = "── Traps ──", Name = "TrapsHeader" })
+
+	EspTab:AddToggle({
 		Text = "Esp Traps",
 		Name = "EspTrapToggle",
 		CurrentValue = false,
@@ -381,7 +563,7 @@ library:CreateWindow({
 				for _, t in pairs(workspace.IGNORE:GetChildren()) do
 					if t:IsA("Model") and t.Name == "Trap" and not t.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
 						if t:FindFirstChildOfClass("Highlight") then t:FindFirstChildOfClass("Highlight"):Destroy() end
-						CreateEsp(t, Color3.fromRGB(255, 0, 0), "Trap", t.PrimaryPart)
+						CreateEsp(t, "Traps", "Trap", t.PrimaryPart)
 					end
 				end
 			else
@@ -394,8 +576,33 @@ library:CreateWindow({
 		end,
 	})
 
+	EspTab:AddColorPicker({
+		Text    = "Traps ESP Color",
+		Name    = "TrapsEspColor",
+		Default = Color3.fromRGB(255, 0, 0),
+		Flag    = "TrapsEspColor",
+		Callback = function(Value)
+			EspSettings.Traps.Color = Value
+			RefreshEspVisuals("Traps", Value, EspSettings.Traps.FillIntensity)
+		end,
+	})
+
+	EspTab:AddSlider({
+		Text    = "Traps Fill Intensity",
+		Name    = "TrapsEspIntensity",
+		Min     = 0,
+		Max     = 100,
+		Default = 100,
+		Flag    = "TrapsEspIntensity",
+		Callback = function(Value)
+			local fillT = Value / 100
+			EspSettings.Traps.FillIntensity = fillT
+			RefreshEspVisuals("Traps", EspSettings.Traps.Color, fillT)
+		end,
+	})
+
 	-- Discord tab
-	local ButonDiscordLink = DiscordTab:AddButton({
+	DiscordTab:AddButton({
 		Text = "Discord Link",
 		Name = "Button",
 		Callback = function()
@@ -403,8 +610,8 @@ library:CreateWindow({
 		end
 	})
 
-	-- Settings tab (ESP-related only)
-	local LimitRangerEspSlider = SettingsTab:AddSlider({
+	-- Settings tab
+	SettingsTab:AddSlider({
 		Text    = "Limit Ranger for Esp",
 		Name    = "LimitRangerEspSlider",
 		Min     = 25,
@@ -416,7 +623,7 @@ library:CreateWindow({
 		end,
 	})
 
-	local DisableLimitRangerEspToggle = SettingsTab:AddToggle({
+	SettingsTab:AddToggle({
 		Text    = "Disable Limit Ranger Esp",
 		Name    = "DisableLimitRangerEspToggle",
 		Default = false,
@@ -426,7 +633,7 @@ library:CreateWindow({
 		end,
 	})
 
-	local DistanceEspToggle = SettingsTab:AddToggle({
+	SettingsTab:AddToggle({
 		Text    = "Activate Distance For Esp",
 		Name    = "DistanceEspToggle",
 		Default = false,
@@ -436,7 +643,7 @@ library:CreateWindow({
 		end,
 	})
 
-	local TraitsToggle = SettingsTab:AddToggle({
+	SettingsTab:AddToggle({
 		Text    = "Line Esp",
 		Name    = "TraitToggle",
 		Default = false,
@@ -449,7 +656,7 @@ library:CreateWindow({
 	local AllAvailableThemes = library:GetAllThemes()
 	library:EnableFPSCounter(true)
 
-	local ChangeThemeDropdown = SettingsTab:AddDropdown({
+	SettingsTab:AddDropdown({
 		Text        = "Change Theme:",
 		Name        = "Dropdown2",
 		Options     = AllAvailableThemes,
@@ -472,7 +679,7 @@ library:CreateWindow({
 				if Players:GetPlayerFromCharacter(child) then
 					if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
 					SetupCharacter(child, workspace.PLAYERS.ALIVE, child.PrimaryPart)
-					CreateEsp(child, Color3.fromRGB(0, 255, 0), child.Name, child.PrimaryPart)
+					CreateEsp(child, "Survivors", child.Name, child.PrimaryPart)
 				end
 			end
 		end
@@ -482,35 +689,35 @@ library:CreateWindow({
 				if Players:GetPlayerFromCharacter(child) then
 					if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
 					SetupCharacter(child, workspace.PLAYERS.KILLER, child.RootPart)
-					CreateEsp(child, Color3.fromRGB(255, 0, 0), child.Name, child.RootPart)
+					CreateEsp(child, "Killers", child.Name, child.RootPart)
 				end
 			end
 		end
 
 		if ActiveEspGen and workspace.MAPS:FindFirstChild("GAME MAP") then
 			if child.Parent == workspace.MAPS["GAME MAP"].Generators and child:IsA("Model") and child.PrimaryPart and not child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
-				CreateEsp(child, Color3.fromRGB(255, 255, 0), "Generator", child.PrimaryPart)
+				CreateEsp(child, "Generators", "Generator", child.PrimaryPart)
 			end
 		end
 
 		if ActiveEspFuseBoxes and workspace.MAPS:FindFirstChild("GAME MAP") and workspace.MAPS["GAME MAP"]:FindFirstChild("FuseBoxes") then
 			if child.Parent == workspace.MAPS["GAME MAP"].FuseBoxes and child:IsA("Model") and child.PrimaryPart and not child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
 				if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
-				CreateEsp(child, Color3.fromRGB(0, 0, 255), "Fuse Box", child.PrimaryPart)
+				CreateEsp(child, "FuseBoxes", "Fuse Box", child.PrimaryPart)
 			end
 		end
 
 		if ActiveEspTraps then
 			if child.Parent == workspace.IGNORE and child.Name == "Trap" and child:IsA("Model") and child.PrimaryPart and not child.PrimaryPart:FindFirstChildOfClass("BillboardGui") then
 				if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
-				CreateEsp(child, Color3.fromRGB(255, 0, 0), "Trap", child.PrimaryPart)
+				CreateEsp(child, "Traps", "Trap", child.PrimaryPart)
 			end
 		end
 
 		if ActiveEspBattery then
 			if child.Parent == workspace.IGNORE and child.Name == "Battery" and child:IsA("BasePart") and not child:FindFirstChildOfClass("BillboardGui") then
 				if child:FindFirstChildOfClass("Highlight") then child:FindFirstChildOfClass("Highlight"):Destroy() end
-				CreateEsp(child, Color3.fromRGB(0, 0, 255), "Battery", child)
+				CreateEsp(child, "Battery", "Battery", child)
 			end
 		end
 	end)
